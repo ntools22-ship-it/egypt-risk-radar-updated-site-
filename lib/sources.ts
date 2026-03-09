@@ -28,6 +28,7 @@ export const SOURCES = [
   { id: 'youm7_breaking',    name: 'اليوم السابع',          url: 'https://www.youm7.com/rss/Section/65',                                                                                                               tab: 'breaking' },
   // 🏦 البنوك
   { id: 'amwal_banks',       name: 'أموال الغد - بنوك',     url: 'https://amwalalghad.com/category/%d8%a8%d9%86%d9%88%d9%83-%d9%88%d9%85%d8%a4%d8%b3%d8%b3%d8%a7%d8%aa-%d9%85%d8%a7%d9%84%d9%8a%d8%a9/feed/',     tab: 'banks' },
+  { id: 'masrafeyoun_banks', name: 'المصرفيون - أخبار البنوك', url: 'https://masrafeyoun.ebi.gov.eg/category/banksnews/feed/', tab: 'banks' },
   // 💰 تمويل
   { id: 'amwal_micro',       name: 'أموال الغد - تمويل',    url: 'https://amwalalghad.com/tag/%d9%85%d8%aa%d9%86%d8%a7%d9%87%d9%8a-%d8%a7%d9%84%d8%b5%d8%ba%d8%b1/feed/',                                           tab: 'credit' },
   { id: 'hapi_credit',       name: 'حابي - تمويل',          url: 'https://hapijournal.com/category/%d8%aa%d9%85%d9%88%d9%8a%d9%84/feed/',                                                                             tab: 'credit' },
