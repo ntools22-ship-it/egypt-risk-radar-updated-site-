@@ -276,12 +276,20 @@ export default function Home() {
   const handleRefresh = async () => {
     setRefreshing(true)
     try {
-      await fetch('/api/fetch-news')
       await loadNews(fetchTab, 1, true)
       setPage(1)
     } catch {}
     setRefreshing(false)
   }
+
+  // auto-refresh كل دقيقتين من Supabase
+  useEffect(() => {
+    if (activeTab === 'digest') return
+    const interval = setInterval(() => {
+      loadNews(fetchTab, 1, true)
+    }, 2 * 60 * 1000)
+    return () => clearInterval(interval)
+  }, [activeTab, activeSector])
 
   const handleGenerateDigest = async () => {
     setGenerating(true)
