@@ -60,12 +60,12 @@ function formatDate(iso: string): string {
 
 function tabBadgeColor(tab: string, dark: boolean): string {
   const base: Record<string, string> = {
-    warning:  dark ? 'bg-red-900 text-red-300'    : 'bg-red-100 text-red-700',
-    credit:   dark ? 'bg-green-900 text-green-300' : 'bg-green-100 text-green-700',
-    cbe:      dark ? 'bg-blue-900 text-blue-300'   : 'bg-blue-100 text-blue-700',
-    banks:    dark ? 'bg-indigo-900 text-indigo-300': 'bg-indigo-100 text-indigo-700',
-    fx:       dark ? 'bg-yellow-900 text-yellow-300': 'bg-yellow-100 text-yellow-700',
-    breaking: dark ? 'bg-orange-900 text-orange-300': 'bg-orange-100 text-orange-700',
+    warning:  dark ? 'bg-red-900 text-red-300'      : 'bg-red-100 text-red-700',
+    credit:   dark ? 'bg-green-900 text-green-300'   : 'bg-green-100 text-green-700',
+    cbe:      dark ? 'bg-blue-900 text-blue-300'     : 'bg-blue-100 text-blue-700',
+    banks:    dark ? 'bg-indigo-900 text-indigo-300'  : 'bg-indigo-100 text-indigo-700',
+    fx:       dark ? 'bg-yellow-900 text-yellow-300'  : 'bg-yellow-100 text-yellow-700',
+    breaking: dark ? 'bg-orange-900 text-orange-300'  : 'bg-orange-100 text-orange-700',
   }
   return base[tab] || (dark ? 'bg-gray-700 text-gray-300' : 'bg-gray-100 text-gray-600')
 }
@@ -74,56 +74,96 @@ async function share(title: string, url: string) {
   if (navigator.share) {
     try { await navigator.share({ title, url }) } catch {}
   } else {
-    await navigator.clipboard.writeText(`${title}\n${url}`)
+    await navigator.clipboard.writeText(title + '\n' + url)
     alert('تم نسخ الرابط')
   }
 }
 
 function NewsCard({ item, dark }: { item: NewsItem; dark: boolean }) {
+  const [analysis, setAnalysis] = useState('')
+  const [analyzing, setAnalyzing] = useState(false)
+  const [showAnalysis, setShowAnalysis] = useState(false)
+
   const warn   = item.tabs.includes('warning')
   const credit = item.tabs.includes('credit') && !warn
 
+  const handleAnalyze = async () => {
+    if (analysis) {
+      setShowAnalysis(!showAnalysis)
+      return
+    }
+    setAnalyzing(true)
+    setShowAnalysis(true)
+    try {
+      const res = await fetch('/api/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: item.title, source: item.source_name }),
+      })
+      const data = await res.json()
+      setAnalysis(data.analysis || 'تعذر التحليل')
+    } catch {
+      setAnalysis('تعذر التحليل')
+    }
+    setAnalyzing(false)
+  }
+
   return (
-    <div className={`news-card rounded-xl p-4 border-r-4 shadow-sm mb-3 ${
-      dark ? 'bg-gray-800' : 'bg-white'
-    } ${
-      warn   ? 'border-red-500'
-      : credit ? 'border-green-500'
-      : dark   ? 'border-gray-700' : 'border-transparent'
-    }`}>
+    <div className={[
+      'news-card rounded-xl p-4 border-r-4 shadow-sm mb-3',
+      dark ? 'bg-gray-800' : 'bg-white',
+      warn ? 'border-red-500' : credit ? 'border-green-500' : dark ? 'border-gray-700' : 'border-transparent',
+    ].join(' ')}>
+
       <a
         href={item.url}
         target="_blank"
         rel="noopener noreferrer"
-        className={`block font-semibold text-base leading-relaxed mb-3 transition-colors ${
-          dark ? 'text-blue-300 hover:text-blue-200' : 'text-[#1a3c5e] hover:text-[#2980b9]'
-        }`}
+        className={[
+          'block font-semibold text-base leading-relaxed mb-3 transition-colors',
+          dark ? 'text-blue-300 hover:text-blue-200' : 'text-[#1a3c5e] hover:text-[#2980b9]',
+        ].join(' ')}
       >
         {item.title}
       </a>
 
       <div className="flex flex-wrap gap-1 mb-3">
         {item.tabs.map(tab => (
-          <span key={tab} className={`text-xs px-2 py-0.5 rounded-full font-medium ${tabBadgeColor(tab, dark)}`}>
+          <span key={tab} className={'text-xs px-2 py-0.5 rounded-full font-medium ' + tabBadgeColor(tab, dark)}>
             {TAB_LABELS[tab] || tab}
           </span>
         ))}
       </div>
 
       <div className="flex items-center justify-between gap-2">
-        <div className={`flex items-center gap-2 text-xs min-w-0 ${dark ? 'text-gray-400' : 'text-gray-400'}`}>
-          <span className="truncate">📰 {item.source_name}</span>
+        <div className="flex items-center gap-2 text-xs text-gray-400 min-w-0">
+          <span className="truncate">{'📰 ' + item.source_name}</span>
           <span>·</span>
-          <span className="whitespace-nowrap">🕐 {formatDate(item.created_at)}</span>
+          <span className="whitespace-nowrap">{'🕐 ' + formatDate(item.created_at)}</span>
         </div>
         <div className="flex gap-2 shrink-0">
           <button
-            onClick={() => share(item.title, item.url)}
-            className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${
-              dark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600'
-            }`}
+            onClick={handleAnalyze}
+            title="تحليل بالذكاء الاصطناعي"
+            className={[
+              'text-xs px-3 py-1.5 rounded-lg font-medium transition-colors',
+              showAnalysis
+                ? 'bg-purple-600 text-white'
+                : dark
+                  ? 'bg-purple-900 hover:bg-purple-800 text-purple-300'
+                  : 'bg-purple-100 hover:bg-purple-200 text-purple-700',
+            ].join(' ')}
           >
-            📤 مشاركة
+            🤖
+          </button>
+          <button
+            onClick={() => share(item.title, item.url)}
+            className={[
+              'text-xs px-3 py-1.5 rounded-lg font-medium transition-colors',
+              dark ? 'bg-gray-700 hover:bg-gray-600 text-gray-300' : 'bg-gray-100 hover:bg-gray-200 text-gray-600',
+            ].join(' ')}
+          >
+            📤
           </button>
           <a
             href={item.url}
@@ -131,10 +171,28 @@ function NewsCard({ item, dark }: { item: NewsItem; dark: boolean }) {
             rel="noopener noreferrer"
             className="text-xs bg-[#1a3c5e] hover:bg-[#2980b9] text-white px-3 py-1.5 rounded-lg font-medium transition-colors"
           >
-            ↗ التفاصيل
+            {'↗ التفاصيل'}
           </a>
         </div>
       </div>
+
+      {showAnalysis && (
+        <div className={[
+          'mt-3 p-3 rounded-lg border text-sm leading-relaxed',
+          dark
+            ? 'bg-purple-950 border-purple-800 text-purple-200'
+            : 'bg-purple-50 border-purple-200 text-purple-900',
+        ].join(' ')}>
+          {analyzing ? (
+            <div className="flex items-center gap-2 text-purple-500">
+              <span className="inline-block animate-spin">{'⟳'}</span>
+              <span>جاري التحليل...</span>
+            </div>
+          ) : (
+            <div className="whitespace-pre-wrap">{analysis}</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -142,18 +200,16 @@ function NewsCard({ item, dark }: { item: NewsItem; dark: boolean }) {
 function DigestCard({ item, dark }: { item: DigestItem; dark: boolean }) {
   const [expanded, setExpanded] = useState(false)
   return (
-    <div className={`rounded-xl p-4 border-r-4 border-[#2980b9] shadow-sm mb-3 ${dark ? 'bg-gray-800' : 'bg-white'}`}>
+    <div className={['rounded-xl p-4 border-r-4 border-[#2980b9] shadow-sm mb-3', dark ? 'bg-gray-800' : 'bg-white'].join(' ')}>
       <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(!expanded)}>
         <div>
-          <h3 className={`font-bold text-base ${dark ? 'text-blue-300' : 'text-[#1a3c5e]'}`}>{item.tab_label}</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{item.news_count} خبر · {item.digest_date}</p>
+          <h3 className={['font-bold text-base', dark ? 'text-blue-300' : 'text-[#1a3c5e]'].join(' ')}>{item.tab_label}</h3>
+          <p className="text-xs text-gray-400 mt-0.5">{item.news_count + ' خبر · ' + item.digest_date}</p>
         </div>
         <span className="text-gray-400 text-lg">{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && (
-        <div className={`mt-4 pt-4 border-t text-sm leading-relaxed whitespace-pre-wrap ${
-          dark ? 'border-gray-700 text-gray-300' : 'border-gray-100 text-gray-700'
-        }`}>
+        <div className={['mt-4 pt-4 border-t text-sm leading-relaxed whitespace-pre-wrap', dark ? 'border-gray-700 text-gray-300' : 'border-gray-100 text-gray-700'].join(' ')}>
           {item.content}
         </div>
       )}
@@ -174,11 +230,11 @@ export default function Home() {
   const [hasMore, setHasMore] = useState(true)
   const [lastUpdated, setLastUpdated] = useState('')
 
-  // Persist dark mode
   useEffect(() => {
     const saved = localStorage.getItem('darkMode')
     if (saved === 'true') setDark(true)
   }, [])
+
   const toggleDark = () => {
     setDark(prev => {
       localStorage.setItem('darkMode', String(!prev))
@@ -192,7 +248,7 @@ export default function Home() {
     if (tab === 'digest') return
     setLoading(true)
     try {
-      const res = await fetch(`/api/news?tab=${tab}&page=${pg}`)
+      const res = await fetch('/api/news?tab=' + tab + '&page=' + pg)
       const data = await res.json()
       const items: NewsItem[] = data.items || []
       setNews(prev => replace ? items : [...prev, ...items])
@@ -242,13 +298,9 @@ export default function Home() {
     loadNews(fetchTab, next, false)
   }
 
-  const bg   = dark ? 'bg-gray-900' : 'bg-[#f0f4f8]'
-  const text = dark ? 'text-gray-100' : 'text-[#2c3e50]'
-
   return (
-    <div className={`min-h-screen ${bg} ${text}`}>
+    <div className={['min-h-screen', dark ? 'bg-gray-900' : 'bg-[#f0f4f8]'].join(' ')}>
 
-      {/* Header */}
       <header className="bg-[#1a3c5e] text-white sticky top-0 z-50 shadow-lg">
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
@@ -256,43 +308,25 @@ export default function Home() {
             <p className="text-blue-200 text-xs">Egypt Risk Radar</p>
           </div>
           <div className="flex items-center gap-2">
-            {lastUpdated && (
-              <span className="text-blue-300 text-xs hidden sm:block">آخر تحديث: {lastUpdated}</span>
-            )}
-            {/* Dark mode toggle */}
-            <button
-              onClick={toggleDark}
-              className="bg-[#2980b9] hover:bg-blue-500 text-white text-sm px-3 py-2 rounded-lg font-medium transition-colors"
-              title={dark ? 'الوضع النهاري' : 'الوضع الليلي'}
-            >
+            {lastUpdated && <span className="text-blue-300 text-xs hidden sm:block">{'آخر تحديث: ' + lastUpdated}</span>}
+            <button onClick={toggleDark} className="bg-[#2980b9] hover:bg-blue-500 text-white text-sm px-3 py-2 rounded-lg transition-colors">
               {dark ? '☀️' : '🌙'}
             </button>
-            {/* Refresh */}
-            <button
-              onClick={handleRefresh}
-              disabled={refreshing}
-              className="bg-[#2980b9] hover:bg-blue-500 disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg font-medium transition-colors"
-            >
+            <button onClick={handleRefresh} disabled={refreshing} className="bg-[#2980b9] hover:bg-blue-500 disabled:opacity-50 text-white text-sm px-3 py-2 rounded-lg font-medium transition-colors">
               {refreshing ? <span className="inline-block animate-spin">⟳</span> : '⟳'}
             </button>
           </div>
         </div>
       </header>
 
-      {/* Main Tabs */}
-      <div className={`border-b sticky top-[60px] z-40 ${dark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'}`}>
+      <div className={['border-b sticky top-[60px] z-40', dark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-200'].join(' ')}>
         <div className="max-w-2xl mx-auto">
           <div className="tabs-scroll flex overflow-x-auto px-2 py-1 gap-1">
             {MAIN_TABS.map(tab => (
-              <button
-                key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
-                className={`tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-sm font-medium shrink-0 ${
-                  activeTab === tab.key
-                    ? 'bg-[#1a3c5e] text-white'
-                    : dark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100'
-                }`}
-              >
+              <button key={tab.key} onClick={() => setActiveTab(tab.key)}
+                className={['tab-btn whitespace-nowrap px-3 py-2 rounded-lg text-sm font-medium shrink-0',
+                  activeTab === tab.key ? 'bg-[#1a3c5e] text-white' : dark ? 'text-gray-300 hover:bg-gray-700' : 'text-gray-600 hover:bg-gray-100',
+                ].join(' ')}>
                 {tab.label}
               </button>
             ))}
@@ -300,21 +334,15 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Sector Sub-tabs */}
       {activeTab === 'sectors' && (
-        <div className={`border-b ${dark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'}`}>
+        <div className={['border-b', dark ? 'bg-gray-800 border-gray-700' : 'bg-white border-gray-100'].join(' ')}>
           <div className="max-w-2xl mx-auto">
             <div className="tabs-scroll flex overflow-x-auto px-2 py-1 gap-1">
               {SECTOR_TABS.map(tab => (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveSector(tab.key)}
-                  className={`tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 ${
-                    activeSector === tab.key
-                      ? 'bg-[#2980b9] text-white'
-                      : dark ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-50'
-                  }`}
-                >
+                <button key={tab.key} onClick={() => setActiveSector(tab.key)}
+                  className={['tab-btn whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium shrink-0',
+                    activeSector === tab.key ? 'bg-[#2980b9] text-white' : dark ? 'text-gray-400 hover:bg-gray-700' : 'text-gray-500 hover:bg-gray-50',
+                  ].join(' ')}>
                   {tab.label}
                 </button>
               ))}
@@ -323,22 +351,17 @@ export default function Home() {
         </div>
       )}
 
-      {/* Content */}
       <main className="max-w-2xl mx-auto px-4 py-4">
 
-        {/* Digest */}
         {activeTab === 'digest' && (
           <div>
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h2 className={`font-bold text-lg ${dark ? 'text-blue-300' : 'text-[#1a3c5e]'}`}>🤖 الموجز اليومي</h2>
+                <h2 className={['font-bold text-lg', dark ? 'text-blue-300' : 'text-[#1a3c5e]'].join(' ')}>🤖 الموجز اليومي</h2>
                 <p className="text-gray-400 text-xs mt-0.5">تحليل الأخبار بالذكاء الاصطناعي</p>
               </div>
-              <button
-                onClick={handleGenerateDigest}
-                disabled={generating}
-                className="bg-[#1a3c5e] hover:bg-[#2980b9] disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors"
-              >
+              <button onClick={handleGenerateDigest} disabled={generating}
+                className="bg-[#1a3c5e] hover:bg-[#2980b9] disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">
                 {generating ? '⟳ جاري التوليد...' : '✨ توليد جديد'}
               </button>
             </div>
@@ -348,13 +371,10 @@ export default function Home() {
                 <p className="text-gray-500 font-medium">لا يوجد موجز لليوم</p>
                 <p className="text-gray-400 text-sm mt-1">اضغط توليد جديد لإنشاء التحليل</p>
               </div>
-            ) : (
-              digest.map(item => <DigestCard key={item.id} item={item} dark={dark} />)
-            )}
+            ) : digest.map(item => <DigestCard key={item.id} item={item} dark={dark} />)}
           </div>
         )}
 
-        {/* News */}
         {activeTab !== 'digest' && (
           <>
             {loading && news.length === 0 ? (
@@ -370,18 +390,13 @@ export default function Home() {
               </div>
             ) : (
               <>
-                <div className="mb-2 text-xs text-gray-400">{news.length} خبر</div>
+                <div className="mb-2 text-xs text-gray-400">{news.length + ' خبر'}</div>
                 {news.map(item => <NewsCard key={item.id} item={item} dark={dark} />)}
                 {hasMore && (
-                  <button
-                    onClick={loadMore}
-                    disabled={loading}
-                    className={`w-full py-3 mt-2 text-sm rounded-xl border font-medium transition-colors disabled:opacity-50 ${
-                      dark
-                        ? 'bg-gray-800 border-gray-700 text-blue-300 hover:bg-gray-700'
-                        : 'bg-white border-gray-200 text-[#2980b9] hover:bg-gray-50'
-                    }`}
-                  >
+                  <button onClick={loadMore} disabled={loading}
+                    className={['w-full py-3 mt-2 text-sm rounded-xl border font-medium transition-colors disabled:opacity-50',
+                      dark ? 'bg-gray-800 border-gray-700 text-blue-300 hover:bg-gray-700' : 'bg-white border-gray-200 text-[#2980b9] hover:bg-gray-50',
+                    ].join(' ')}>
                     {loading ? 'جاري التحميل...' : 'تحميل المزيد'}
                   </button>
                 )}
