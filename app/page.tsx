@@ -101,9 +101,13 @@ function NewsCard({ item, dark }: { item: NewsItem; dark: boolean }) {
         body: JSON.stringify({ title: item.title, source: item.source_name }),
       })
       const data = await res.json()
-      setAnalysis(data.analysis || 'تعذر التحليل')
-    } catch {
-      setAnalysis('تعذر التحليل')
+      if (data.analysis) {
+        setAnalysis(data.analysis)
+      } else {
+        setAnalysis('خطأ: ' + (data.error || data.detail || JSON.stringify(data)))
+      }
+    } catch (e: any) {
+      setAnalysis('خطأ في الاتصال: ' + e.message)
     }
     setAnalyzing(false)
   }
