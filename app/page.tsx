@@ -225,7 +225,6 @@ export default function Home() {
   const [digest, setDigest] = useState<DigestItem[]>([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [generating, setGenerating] = useState(false)
   const [page, setPage] = useState(1)
   const [hasMore, setHasMore] = useState(true)
   const [lastUpdated, setLastUpdated] = useState('')
@@ -282,7 +281,7 @@ export default function Home() {
     setRefreshing(false)
   }
 
-  // auto-refresh كل دقيقتين من Supabase
+  // auto-refresh كل دقيقتين
   useEffect(() => {
     if (activeTab === 'digest') return
     const interval = setInterval(() => {
@@ -290,15 +289,6 @@ export default function Home() {
     }, 2 * 60 * 1000)
     return () => clearInterval(interval)
   }, [activeTab, activeSector])
-
-  const handleGenerateDigest = async () => {
-    setGenerating(true)
-    try {
-      await fetch('/api/digest?action=generate')
-      await loadDigest()
-    } catch {}
-    setGenerating(false)
-  }
 
   const loadMore = () => {
     const next = page + 1
@@ -363,21 +353,15 @@ export default function Home() {
 
         {activeTab === 'digest' && (
           <div>
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className={['font-bold text-lg', dark ? 'text-blue-300' : 'text-[#1a3c5e]'].join(' ')}>🤖 الموجز اليومي</h2>
-                <p className="text-gray-400 text-xs mt-0.5">تحليل الأخبار بالذكاء الاصطناعي</p>
-              </div>
-              <button onClick={handleGenerateDigest} disabled={generating}
-                className="bg-[#1a3c5e] hover:bg-[#2980b9] disabled:opacity-50 text-white text-sm px-4 py-2 rounded-lg font-medium transition-colors">
-                {generating ? '⟳ جاري التوليد...' : '✨ توليد جديد'}
-              </button>
+            <div className="mb-4">
+              <h2 className={['font-bold text-lg', dark ? 'text-blue-300' : 'text-[#1a3c5e]'].join(' ')}>🤖 الموجز اليومي</h2>
+              <p className="text-gray-400 text-xs mt-0.5">موجز أنباء وتحليلات — ينزل كل يوم الساعة 10 مساءً</p>
             </div>
             {digest.length === 0 ? (
               <div className="text-center py-16">
                 <div className="text-5xl mb-4">🤖</div>
                 <p className="text-gray-500 font-medium">لا يوجد موجز لليوم</p>
-                <p className="text-gray-400 text-sm mt-1">اضغط توليد جديد لإنشاء التحليل</p>
+                <p className="text-gray-400 text-sm mt-1">ينزل الموجز اليومي الساعة 10 مساءً</p>
               </div>
             ) : digest.map(item => <DigestCard key={item.id} item={item} dark={dark} />)}
           </div>
