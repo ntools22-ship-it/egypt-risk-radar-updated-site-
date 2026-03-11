@@ -21,7 +21,7 @@ interface DigestItem {
 }
 
 const MAIN_TABS = [
-  { key: 'all',      label: '📋 الكل' },
+  { key: 'all',      label: '📋 آخر الأخبار' },
   { key: 'warning',  label: '⚠️ إنذار مبكر' },
   { key: 'credit',   label: '💰 تمويل وائتمان' },
   { key: 'banks',    label: '🏦 البنوك' },
