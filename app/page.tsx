@@ -34,18 +34,20 @@ const MAIN_TABS = [
 ]
 
 const SECTOR_TABS = [
-  { key: 'sector_realestate', label: '🏗️ عقارات' },
-  { key: 'sector_energy',     label: '⚡ طاقة' },
-  { key: 'sector_industry',   label: '🏭 صناعة' },
-  { key: 'sector_tech',       label: '💻 تكنولوجيا' },
-  { key: 'sector_agri',       label: '🌾 زراعة' },
-  { key: 'sector_transport',  label: '🚢 نقل وملاحة' },
+  { key: 'sector_invest',      label: '💼 استثمار' },
+  { key: 'sector_realestate',  label: '🏗️ عقارات' },
+  { key: 'sector_energy',      label: '⚡ طاقة' },
+  { key: 'sector_industry',    label: '🏭 صناعة' },
+  { key: 'sector_tech',        label: '💻 تكنولوجيا' },
+  { key: 'sector_agri',        label: '🌾 زراعة' },
+  { key: 'sector_transport',   label: '🚢 نقل وملاحة' },
 ]
 
 const TAB_LABELS: Record<string, string> = {
   breaking: '⚡ عاجل', banks: '🏦 البنوك', credit: '💰 تمويل',
   warning: '⚠️ إنذار', fx: '💵 دولار', cbe: '🏛️ مركزي',
-  global: '🌍 عالمي', sector_agri: '🌾 زراعة', sector_industry: '🏭 صناعة',
+  global: '🌍 عالمي', sector_invest: '💼 استثمار',
+  sector_agri: '🌾 زراعة', sector_industry: '🏭 صناعة',
   sector_realestate: '🏗️ عقارات', sector_energy: '⚡ طاقة',
   sector_transport: '🚢 نقل', sector_tech: '💻 تكنولوجيا',
 }
@@ -224,7 +226,7 @@ function DigestCard({ item, dark }: { item: DigestItem; dark: boolean }) {
 export default function Home() {
   const [dark, setDark] = useState(false)
   const [activeTab, setActiveTab] = useState('all')
-  const [activeSector, setActiveSector] = useState('sector_realestate')
+  const [activeSector, setActiveSector] = useState('sector_invest')
   const [news, setNews] = useState<NewsItem[]>([])
   const [digest, setDigest] = useState<DigestItem[]>([])
   const [loading, setLoading] = useState(false)
