@@ -1,19 +1,27 @@
 import { NextResponse } from 'next/server'
-import crypto from 'crypto'
-import { supabase } from '@/lib/supabase'
+import { createClient } from '@supabase/supabase-js'
 import { SOURCES } from '@/lib/sources'
 import { getTabs, isArabic } from '@/lib/keywords'
 
-export const maxDuration = 60
+export const runtime = 'edge'
 
-function makeHash(title: string): string {
-  return crypto.createHash('md5').update(title.trim()).digest('hex')
+const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!
+const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_KEY!
+
+// SHA-256 — متوافق مع bot.py (hashlib.sha256)
+async function makeHash(title: string): Promise<string> {
+  const encoder = new TextEncoder()
+  const data = encoder.encode(title.trim())
+  const buffer = await crypto.subtle.digest('SHA-256', data)
+  return Array.from(new Uint8Array(buffer))
+    .map(b => b.toString(16).padStart(2, '0'))
+    .join('')
 }
 
 async function parseRSS(url: string): Promise<{ title: string; link: string; summary: string }[]> {
   try {
     const controller = new AbortController()
-    const timer = setTimeout(() => controller.abort(), 6000)
+    const timer = setTimeout(() => controller.abort(), 7000)
     const res = await fetch(url, {
       signal: controller.signal,
       headers: { 'User-Agent': 'Mozilla/5.0 (compatible; EgyptRiskRadar/1.0)' },
@@ -22,21 +30,20 @@ async function parseRSS(url: string): Promise<{ title: string; link: string; sum
     if (!res.ok) return []
     const xml = await res.text()
     const items: { title: string; link: string; summary: string }[] = []
-    const itemRegex = /<item[\s>]([\s\S]*?)<\/item>/gi
+    const itemRegex = /<item[\s\S]*?<\/item>/gi
     let match
     while ((match = itemRegex.exec(xml)) !== null && items.length < 10) {
-      const block = match[1]
-      const title = (block.match(/<title[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/title>/) ||
-                     block.match(/<title[^>]*>([\s\S]*?)<\/title>/) || [])[1] || ''
-      const link  = (block.match(/<link[^>]*>([\s\S]*?)<\/link>/) ||
-                     block.match(/<link>([\s\S]*?)<\/link>/) || [])[1] || ''
-      const summary = (block.match(/<description[^>]*><!\[CDATA\[([\s\S]*?)\]\]><\/description>/) ||
-                       block.match(/<description[^>]*>([\s\S]*?)<\/description>/) || [])[1] || ''
-      const cleanTitle = title.replace(/<[^>]+>/g, '').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&#\d+;/g, '').trim()
-      const cleanLink  = link.replace(/<[^>]+>/g, '').trim()
-      if (cleanTitle && cleanLink) {
-        items.push({ title: cleanTitle, link: cleanLink, summary: summary.slice(0, 300) })
-      }
+      const block = match[0]
+      const titleMatch = block.match(/<title[^>]*><!\[CDATA\[([\s\S]*?)\]\]>/) ||
+                         block.match(/<title[^>]*>([\s\S]*?)<\/title>/)
+      const linkMatch  = block.match(/<link>([\s\S]*?)<\/link>/) ||
+                         block.match(/<link[^>]*href="([^"]+)"/)
+      const descMatch  = block.match(/<description[^>]*><!\[CDATA\[([\s\S]*?)\]\]>/) ||
+                         block.match(/<description[^>]*>([\s\S]*?)<\/description>/)
+      const title   = (titleMatch?.[1] || '').replace(/<[^>]+>/g, '').replace(/&amp;/g,'&').replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&quot;/g,'"').replace(/&#\d+;/g,'').trim()
+      const link    = (linkMatch?.[1] || '').replace(/<[^>]+>/g,'').trim()
+      const summary = (descMatch?.[1] || '').slice(0, 300)
+      if (title && link) items.push({ title, link, summary })
     }
     return items
   } catch {
@@ -57,31 +64,26 @@ async function fetchSource(src: typeof SOURCES[0]) {
       url: item.link,
       source_name: src.name,
       tabs,
-      hash: makeHash(item.title),
+      hash: await makeHash(item.title),
     })
   }
   return results
 }
 
 export async function GET() {
-  try {
-    // Process in batches of 6 to avoid timeout
-    const batchSize = 6
-    const allItems: { title: string; url: string; source_name: string; tabs: string[]; hash: string }[] = []
+  const supabase = createClient(supabaseUrl, supabaseKey)
 
-    for (let i = 0; i < SOURCES.length; i += batchSize) {
-      const batch = SOURCES.slice(i, i + batchSize)
-      const results = await Promise.allSettled(batch.map(fetchSource))
-      for (const r of results) {
-        if (r.status === 'fulfilled') allItems.push(...r.value)
-      }
+  try {
+    const allResults = await Promise.allSettled(SOURCES.map(fetchSource))
+    const allItems: { title: string; url: string; source_name: string; tabs: string[]; hash: string }[] = []
+    for (const r of allResults) {
+      if (r.status === 'fulfilled') allItems.push(...r.value)
     }
 
     if (allItems.length === 0) {
       return NextResponse.json({ message: 'No items found', count: 0 })
     }
 
-    // Deduplicate
     const seen = new Set<string>()
     const unique = allItems.filter(item => {
       if (seen.has(item.hash)) return false
