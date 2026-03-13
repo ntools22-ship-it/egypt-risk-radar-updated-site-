@@ -89,7 +89,7 @@ export async function GET(req: NextRequest) {
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
 
     // نجمع التواريخ المتاحة
-    const dates = [...new Set((data || []).map((d: any) => d.digest_date))].sort().reverse()
+    const dates = [...new Set((data || []).map((d: { digest_date: string }) => d.digest_date))].sort().reverse()
     return NextResponse.json({ items: data || [], dates })
   }
 
