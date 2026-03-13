@@ -4,8 +4,8 @@ import { TABS } from '@/lib/sources'
 
 export const maxDuration = 60
 
-const GEMINI_KEY = process.env.GEMINI_API_KEY || ''
-const GEMINI_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=' + GEMINI_KEY
+const GROQ_KEY = process.env.GROQ_API_KEY || ''
+const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions'
 
 const PRIORITY = [
   'warning', 'credit', 'cbe', 'banks', 'fx', 'global',
@@ -13,106 +13,85 @@ const PRIORITY = [
   'sector_energy', 'sector_transport', 'sector_tech',
 ]
 
-async function askGemini(tabLabel: string, headlines: string[]): Promise<string> {
-  const headlinesList = headlines.map((h) => '- ' + h).join('\n')
-  const prompt = [
-    'You are a senior risk and credit analyst at a major Egyptian bank. Respond only in Arabic.',
-    'The following news headlines are from the "' + tabLabel + '" category in the last 24 hours:',
-    '',
-    headlinesList,
-    '',
-    'Write a professional analysis in 3 parts:',
-    '1. Key highlights (bullet points)',
-    '2. What requires attention from a risk/credit perspective',
-    '3. One professional recommendation for banking sector professionals',
-    '',
-    'Be concise. No greetings or preamble. Arabic only.',
-  ].join('\n')
-
-  const res = await fetch(GEMINI_URL, {
+async function askGroq(prompt: string): Promise<string> {
+  const res = await fetch(GROQ_URL, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+    headers: {
+      'Authorization': `Bearer ${GROQ_KEY}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      max_tokens: 1000,
+      temperature: 0.3,
+    }),
   })
   const data = await res.json()
-  return data?.candidates?.[0]?.content?.parts?.[0]?.text || ''
+  return data?.choices?.[0]?.message?.content || ''
+}
+
+function buildTabPrompt(tabLabel: string, headlines: string[]): string {
+  const list = headlines.map(h => '- ' + h).join('\n')
+  return `أنت محلل أول في قسم المخاطر والائتمان بأحد البنوك المصرية الكبرى.
+
+عناوين أخبار تبويب "${tabLabel}" خلال آخر 24 ساعة:
+${list}
+
+المطلوب (اكتب بإيجاز واحترافية):
+1. 📌 أبرز الأخبار في نقاط مختصرة
+2. ⚠️ ما يستوجب الانتباه من منظور مخاطر الائتمان والاستعلامات المصرفية
+3. 🔭 توقع استباقي: ما الذي قد يحدث خلال الـ 48 ساعة القادمة بناءً على هذه المؤشرات؟
+
+اكتب بأسلوب مهني مباشر باللغة العربية، بدون مقدمات أو تحيات.`
+}
+
+function buildOverallPrompt(grouped: Record<string, string[]>): string {
+  let sections = ''
+  for (const [tab, headlines] of Object.entries(grouped)) {
+    const label = TABS[tab] || tab
+    sections += `\n${label}:\n` + headlines.slice(0, 5).map(h => '- ' + h).join('\n') + '\n'
+  }
+  return `أنت كبير محللي المخاطر في القطاع المصرفي المصري.
+
+ملخص أخبار اليوم عبر كل القطاعات:
+${sections}
+
+المطلوب:
+1. 🧭 الصورة الكبيرة: ما الاتجاه العام للسوق المصري اليوم؟
+2. 🚨 أعلى 3 مخاطر تستدعي متابعة فورية من فرق المخاطر والائتمان
+3. 💡 توصية استباقية واحدة للبنوك والمؤسسات المالية
+
+اكتب بأسلوب تنفيذي موجز باللغة العربية.`
 }
 
 export async function GET(req: NextRequest) {
   const action = req.nextUrl.searchParams.get('action') || 'get'
+  const dateParam = req.nextUrl.searchParams.get('date')
 
+  // جلب الموجز — كل التواريخ المتاحة أو تاريخ محدد
   if (action === 'get') {
-    const today = new Date().toISOString().split('T')[0]
-    const { data, error } = await supabase
+    let query = supabase
       .from('digest')
       .select('*')
-      .eq('digest_date', today)
+      .order('digest_date', { ascending: false })
       .order('created_at', { ascending: true })
 
+    if (dateParam) {
+      query = query.eq('digest_date', dateParam)
+    } else {
+      // آخر 7 أيام
+      const week = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0]
+      query = query.gte('digest_date', week)
+    }
+
+    const { data, error } = await query
     if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-    return NextResponse.json({ items: data || [] })
+
+    // نجمع التواريخ المتاحة
+    const dates = [...new Set((data || []).map((d: any) => d.digest_date))].sort().reverse()
+    return NextResponse.json({ items: data || [], dates })
   }
 
-  if (!GEMINI_KEY) {
-    return NextResponse.json({ error: 'GEMINI_API_KEY not set' }, { status: 500 })
-  }
-
-  const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString()
-  const { data: news, error } = await supabase
-    .from('news')
-    .select('title, tabs')
-    .gte('created_at', since)
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 })
-  if (!news || news.length === 0) return NextResponse.json({ message: 'No news in last 24h', count: 0 })
-
-  const grouped: Record<string, string[]> = {}
-  for (const item of news) {
-    for (const tab of item.tabs) {
-      if (!grouped[tab]) grouped[tab] = []
-      grouped[tab].push(item.title)
-    }
-  }
-
-  const orderedTabs = Object.keys(grouped).sort((a, b) => {
-    const ai = PRIORITY.indexOf(a)
-    const bi = PRIORITY.indexOf(b)
-    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi)
-  })
-
-  const today = new Date().toISOString().split('T')[0]
-  const digestItems = []
-
-  for (const tab of orderedTabs) {
-    const headlines = grouped[tab]
-    if (!headlines || headlines.length === 0) continue
-
-    const tabLabel = TABS[tab] || tab
-
-    try {
-      const content = await askGemini(tabLabel, headlines)
-      if (content) {
-        digestItems.push({
-          tab_key: tab,
-          tab_label: tabLabel,
-          content,
-          news_count: headlines.length,
-          digest_date: today,
-        })
-      }
-      await new Promise(r => setTimeout(r, 1500))
-    } catch {
-      continue
-    }
-  }
-
-  if (digestItems.length > 0) {
-    await supabase.from('digest').delete().eq('digest_date', today)
-    const { error: insertError } = await supabase.from('digest').insert(digestItems)
-    if (insertError) {
-      return NextResponse.json({ error: insertError.message }, { status: 500 })
-    }
-  }
-
-  return NextResponse.json({ message: 'Digest generated', count: digestItems.length })
+  return NextResponse.json({ error: 'unknown action' }, { status: 400 })
 }
