@@ -6,45 +6,47 @@ export async function POST(req: NextRequest) {
     const title: string = body.title || ''
     const source: string = body.source || ''
 
-    if (!title) {
-      return NextResponse.json({ error: 'no title' }, { status: 400 })
-    }
+    if (!title) return NextResponse.json({ error: 'no title' }, { status: 400 })
 
-    const key = process.env.GEMINI_API_KEY
-    if (!key) {
-      return NextResponse.json({ error: 'no key' }, { status: 500 })
-    }
+    const key = process.env.GROQ_API_KEY
+    if (!key) return NextResponse.json({ error: 'no key' }, { status: 500 })
 
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`
+    const prompt = `أنت متخصص في المخاطر الائتمانية والاستعلامات المصرفية في مصر.
 
-    const prompt = `انت مسؤول مخاطر وائتمان في بنك مصري. حلل الخبر التالي في 3 نقاط فقط باللغة العربية بدون مقدمات:
-1. ماذا يعني للقطاع المصرفي؟
-2. مخاطرة أم فرصة؟
-3. توصية عملية.
+حلّل هذا الخبر بأسلوب بسيط يفهمه أي شخص، في 3 نقاط واضحة:
+
+1️⃣ ماذا يعني هذا الخبر ببساطة؟
+2️⃣ هل هو خطر أم فرصة للبنوك والمقترضين في مصر؟ ولماذا؟
+3️⃣ ماذا يجب أن يفعل المسؤول عن الائتمان أو المخاطر استباقياً؟
 
 الخبر: ${title}
-المصدر: ${source}`
+المصدر: ${source}
 
-    const res = await fetch(url, {
+اكتب بالعربية فقط، بدون مقدمات.`
+
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Authorization': `Bearer ${key}`,
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }]
+        model: 'llama-3.3-70b-versatile',
+        messages: [{ role: 'user', content: prompt }],
+        max_tokens: 500,
+        temperature: 0.3,
       }),
     })
 
     if (!res.ok) {
       const err = await res.text()
-      return NextResponse.json({ error: `Gemini error ${res.status}`, detail: err }, { status: 500 })
+      return NextResponse.json({ error: `Groq ${res.status}`, detail: err }, { status: 500 })
     }
 
     const data = await res.json()
-    const analysis = data?.candidates?.[0]?.content?.parts?.[0]?.text
+    const analysis = data?.choices?.[0]?.message?.content
 
-    if (!analysis) {
-      return NextResponse.json({ error: 'no analysis', raw: JSON.stringify(data) }, { status: 500 })
-    }
-
+    if (!analysis) return NextResponse.json({ error: 'empty response' }, { status: 500 })
     return NextResponse.json({ analysis })
 
   } catch (err: any) {
