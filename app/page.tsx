@@ -18,6 +18,7 @@ interface DigestItem {
   content: string
   news_count: number
   digest_date: string
+  headlines?: string
 }
 
 const MAIN_TABS = [
@@ -205,18 +206,44 @@ function NewsCard({ item, dark }: { item: NewsItem; dark: boolean }) {
 
 function DigestCard({ item, dark }: { item: DigestItem; dark: boolean }) {
   const [expanded, setExpanded] = useState(false)
+  const headlines: string[] = (() => {
+    try { return item.headlines ? JSON.parse(item.headlines) : [] } catch { return [] }
+  })()
+  const isOverall = item.tab_key === 'overall'
+
   return (
-    <div className={['rounded-xl p-4 border-r-4 border-[#2980b9] shadow-sm mb-3', dark ? 'bg-gray-800' : 'bg-white'].join(' ')}>
+    <div className={['rounded-xl p-4 border-r-4 shadow-sm mb-3',
+      isOverall ? 'border-yellow-400' : 'border-[#2980b9]',
+      dark ? 'bg-gray-800' : 'bg-white'].join(' ')}>
       <div className="flex items-center justify-between cursor-pointer" onClick={() => setExpanded(!expanded)}>
         <div>
-          <h3 className={['font-bold text-base', dark ? 'text-blue-300' : 'text-[#1a3c5e]'].join(' ')}>{item.tab_label}</h3>
-          <p className="text-xs text-gray-400 mt-0.5">{item.news_count + ' خبر · ' + item.digest_date}</p>
+          <h3 className={['font-bold text-base', dark ? 'text-blue-300' : 'text-[#1a3c5e]'].join(' ')}>
+            {item.tab_label}
+          </h3>
+          <p className="text-xs text-gray-400 mt-0.5">{item.news_count + ' خبر'}</p>
         </div>
         <span className="text-gray-400 text-lg">{expanded ? '▲' : '▼'}</span>
       </div>
       {expanded && (
-        <div className={['mt-4 pt-4 border-t text-sm leading-relaxed whitespace-pre-wrap', dark ? 'border-gray-700 text-gray-300' : 'border-gray-100 text-gray-700'].join(' ')}>
-          {item.content}
+        <div className={['mt-4 pt-4 border-t text-sm', dark ? 'border-gray-700' : 'border-gray-100'].join(' ')}>
+          {headlines.length > 0 && (
+            <div className="mb-4">
+              <p className={['font-semibold text-xs mb-2', dark ? 'text-gray-400' : 'text-gray-500'].join(' ')}>📋 الأخبار</p>
+              <ul className="space-y-1">
+                {headlines.map((h, i) => (
+                  <li key={i} className={['text-sm leading-relaxed', dark ? 'text-gray-300' : 'text-gray-700'].join(' ')}>
+                    {'• ' + h}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <div className={['pt-3 border-t', dark ? 'border-gray-700' : 'border-gray-100'].join(' ')}>
+            <p className={['font-semibold text-xs mb-2', dark ? 'text-gray-400' : 'text-gray-500'].join(' ')}>🤖 تحليل المخاطر</p>
+            <div className={['leading-relaxed whitespace-pre-wrap', dark ? 'text-gray-300' : 'text-gray-700'].join(' ')}>
+              {item.content}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -229,6 +256,8 @@ export default function Home() {
   const [activeSector, setActiveSector] = useState('sector_invest')
   const [news, setNews] = useState<NewsItem[]>([])
   const [digest, setDigest] = useState<DigestItem[]>([])
+  const [digestDates, setDigestDates] = useState<string[]>([])
+  const [activeDigestDate, setActiveDigestDate] = useState('')
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [page, setPage] = useState(1)
@@ -263,11 +292,16 @@ export default function Home() {
     setLoading(false)
   }, [])
 
-  const loadDigest = useCallback(async () => {
+  const loadDigest = useCallback(async (date?: string) => {
     try {
-      const res = await fetch('/api/digest?action=get')
+      const url = date ? `/api/digest?action=get&date=${date}` : '/api/digest?action=get'
+      const res = await fetch(url)
       const data = await res.json()
       setDigest(data.items || [])
+      if (data.dates && data.dates.length > 0) {
+        setDigestDates(data.dates)
+        if (!date) setActiveDigestDate(data.dates[0])
+      }
     } catch {}
   }, [])
 
@@ -363,13 +397,38 @@ export default function Home() {
               <h2 className={['font-bold text-lg', dark ? 'text-blue-300' : 'text-[#1a3c5e]'].join(' ')}>🤖 الموجز اليومي</h2>
               <p className="text-gray-400 text-xs mt-0.5">موجز أنباء وتحليلات — ينزل كل يوم الساعة 10 مساءً</p>
             </div>
+
+            {/* تبويبات التواريخ */}
+            {digestDates.length > 1 && (
+              <div className="flex gap-2 overflow-x-auto pb-2 mb-4">
+                {digestDates.map(d => (
+                  <button key={d} onClick={() => { setActiveDigestDate(d); loadDigest(d) }}
+                    className={['whitespace-nowrap px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 transition-colors',
+                      activeDigestDate === d
+                        ? 'bg-[#1a3c5e] text-white'
+                        : dark ? 'bg-gray-700 text-gray-300' : 'bg-white text-gray-600 border border-gray-200',
+                    ].join(' ')}>
+                    {'📅 موجز ' + new Date(d).toLocaleDateString('ar-EG', { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </button>
+                ))}
+              </div>
+            )}
+
             {digest.length === 0 ? (
               <div className="text-center py-16">
                 <div className="text-5xl mb-4">🤖</div>
                 <p className="text-gray-500 font-medium">لا يوجد موجز لليوم</p>
                 <p className="text-gray-400 text-sm mt-1">ينزل الموجز اليومي الساعة 10 مساءً</p>
               </div>
-            ) : digest.map(item => <DigestCard key={item.id} item={item} dark={dark} />)}
+            ) : (
+              <>
+                <div className={['text-xs font-medium mb-3 px-1', dark ? 'text-gray-400' : 'text-gray-500'].join(' ')}>
+                  {'📋 موجز ' + (activeDigestDate ? new Date(activeDigestDate).toLocaleDateString('ar-EG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '')}
+                  {' · ' + digest.filter(d => d.tab_key !== 'overall').reduce((s, d) => s + d.news_count, 0) + ' خبر'}
+                </div>
+                {digest.map(item => <DigestCard key={item.id} item={item} dark={dark} />)}
+              </>
+            )}
           </div>
         )}
 
