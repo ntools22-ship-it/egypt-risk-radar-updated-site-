@@ -310,6 +310,7 @@ export default function Home() {
     setNews([])
     if (activeTab === 'digest') loadDigest()
     else loadNews(fetchTab, 1, true)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, activeSector])
 
   const handleRefresh = async () => {
@@ -328,6 +329,7 @@ export default function Home() {
       loadNews(fetchTab, 1, true)
     }, 2 * 60 * 1000)
     return () => clearInterval(interval)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, activeSector])
 
   const loadMore = () => {
